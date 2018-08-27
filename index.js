@@ -7,21 +7,92 @@ const {
 const { httpExecutor } = require("builder-util/out/nodeHttpExecutor");
 const mime = require("mime");
 const { configureRequestOptions } = require("builder-util-runtime");
+const { Arch } = require("builder-util");
+const { createReadStream, stat, Stats } = require("fs-extra-p");
+const { basename, join } = require("path");
 
 class Publisher extends HttpPublisher {
-  async doUpload(fileName, arch, dataLength, requestProcessor, file) {
+  async upload(task) {
+    const fileName =
+      (this.useSafeArtifactName ? task.safeArtifactName : null) ||
+      basename(task.file);
+
+    if (task.fileContent != null) {
+      await this.doUpload(
+        fileName,
+        task.arch || Arch.x64,
+        task.fileContent.length,
+        it => it.end(task.fileContent)
+      );
+      return;
+    }
+
+    const fileStat = await stat(task.file);
+    // FIXME: better os detection
+    let os;
+    switch (task.packager.platform.name) {
+      case "windows":
+        os = "win";
+        break;
+      default:
+    }
+
+    const progressBar = this.createProgressBar(fileName, fileStat.size);
+    await this.doUpload(
+      fileName,
+      task.arch || Arch.x64,
+      fileStat.size,
+      (request, reject) => {
+        if (progressBar != null) {
+          // reset (because can be called several times (several attempts)
+          progressBar.update(0);
+        }
+        return this.createReadStreamAndProgressBar(
+          task.file,
+          fileStat,
+          progressBar,
+          reject
+        ).pipe(request);
+      },
+      task.file,
+      os
+    );
+  }
+
+  async doUpload(fileName, arch, dataLength, requestProcessor, file, os) {
+    const packageJsonContent = require(join(
+      this.context.packager.appDir,
+      "package.json"
+    ));
+    const appInfo = this.context.packager.appInfo;
+    const configuration = packageJsonContent["build-simple-http"] || {};
+    const hostname = configuration.hostname || "localhost";
+    const protocol = configuration.protocol || "http";
+    const port = configuration.port || (protocol === "https" ? 443 : 80);
+    const method = configuration.method || "POST";
+    const pathPattern = configuration.path || "/${name}/${os}/${arch}/";
+    const connectionOptions = configuration.connectionOptions || {};
+    const headers = configuration.headers || {};
+    const archName = Arch[arch];
+    const path = pathPattern
+      .replace(/\$\{name\}/g, appInfo.name)
+      .replace(/\$\{os\}/g, os)
+      .replace(/\$\{arch\}/g, archName);
+
     return await httpExecutor.doApiRequest(
       configureRequestOptions({
-        hostname: "hostname",
-        protocol: "http:",
-        port: 8080,
-        path: "/appname/win/x64",
-        method: "POST",
+        hostname,
+        protocol: `${protocol}:`,
+        port,
+        path,
+        method,
         headers: {
-          "X-File-Name": fileName,
+          ...headers,
+          "X-File-Name": file ? basename(file) : fileName,
           "Content-Type": mime.getType(fileName) || "application/octet-stream",
           "Content-Length": dataLength
-        }
+        },
+        ...connectionOptions
       }),
       this.context.cancellationToken,
       requestProcessor

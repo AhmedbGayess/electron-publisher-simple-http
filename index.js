@@ -17,17 +17,6 @@ class Publisher extends HttpPublisher {
       (this.useSafeArtifactName ? task.safeArtifactName : null) ||
       basename(task.file);
 
-    if (task.fileContent != null) {
-      await this.doUpload(
-        fileName,
-        task.arch || Arch.x64,
-        task.fileContent.length,
-        it => it.end(task.fileContent)
-      );
-      return;
-    }
-
-    const fileStat = await stat(task.file);
     // FIXME: better os detection
     let os;
     switch (task.packager.platform.name) {
@@ -35,6 +24,20 @@ class Publisher extends HttpPublisher {
         os = "win";
         break;
       default:
+        os = task.packager.platform.name;
+        break;
+    }
+
+    if (task.fileContent != null) {
+      await this.doUpload(
+        fileName,
+        task.arch || Arch.x64,
+        task.fileContent.length,
+        it => it.end(task.fileContent),
+        fileName,
+        os
+      );
+      return;
     }
 
     const progressBar = this.createProgressBar(fileName, fileStat.size);

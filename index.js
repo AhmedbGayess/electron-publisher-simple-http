@@ -40,6 +40,8 @@ class Publisher extends HttpPublisher {
       return;
     }
 
+    const fileStat = await stat(task.file);
+
     const progressBar = this.createProgressBar(fileName, fileStat.size);
     await this.doUpload(
       fileName,

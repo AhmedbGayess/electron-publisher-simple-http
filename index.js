@@ -1,14 +1,9 @@
-const {
-  getCiTag,
-  HttpPublisher,
-  PublishContext,
-  PublishOptions
-} = require("electron-publish/out/publisher");
+const { HttpPublisher } = require("electron-publish/out/publisher");
 const { httpExecutor } = require("builder-util/out/nodeHttpExecutor");
 const mime = require("mime");
 const { configureRequestOptions } = require("builder-util-runtime");
 const { Arch } = require("builder-util");
-const { createReadStream, stat, Stats } = require("fs-extra-p");
+const { createReadStream, stat } = require("fs-extra-p");
 const { basename, join } = require("path");
 
 class Publisher extends HttpPublisher {

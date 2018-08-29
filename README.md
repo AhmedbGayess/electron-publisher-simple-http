@@ -51,7 +51,7 @@ https://github.com/electron-userland/electron-builder/issues/3261
   "hostname": "localhost",
   "protocol": "http",
   "port": 80,
-  "//": "or 433 if protocol is set to https",
+  "//": "or 443 if protocol is set to https",
   "method": "POST",
   "connectionOptions": {},
   "headers": {}
